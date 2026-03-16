@@ -89,26 +89,46 @@ public class ScheduleGenerator
     public List<ScheduleSlot> GetSlotsFromNow(
         string channelId, List<BaseItem> items, DateTime utcNow, int count)
     {
-        var weekStart = GetWeekStart(utcNow);
-        var schedule = GenerateWeekSchedule(channelId, items, weekStart);
         var result = new List<ScheduleSlot>();
-
-        bool found = false;
-        foreach (var slot in schedule)
+        if (items.Count == 0 || count <= 0)
         {
-            if (!found && utcNow >= slot.StartUtc && utcNow < slot.EndUtc)
-            {
-                found = true;
-            }
+            return result;
+        }
 
-            if (found)
+        var weekStart = GetWeekStart(utcNow);
+        var cursor = utcNow;
+
+        while (result.Count < count)
+        {
+            var schedule = GenerateWeekSchedule(channelId, items, weekStart);
+            bool found = false;
+
+            foreach (var slot in schedule)
             {
+                if (!found && cursor >= slot.StartUtc && cursor < slot.EndUtc)
+                {
+                    found = true;
+                }
+
+                if (!found)
+                {
+                    continue;
+                }
+
                 result.Add(slot);
                 if (result.Count >= count)
                 {
                     break;
                 }
             }
+
+            if (result.Count >= count)
+            {
+                break;
+            }
+
+            weekStart = weekStart.AddDays(7);
+            cursor = weekStart;
         }
 
         return result;

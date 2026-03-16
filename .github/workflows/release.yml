@@ -58,6 +58,13 @@ jobs:
           files: ${{ steps.artifact.outputs.zip_name }}
           generate_release_notes: true
 
+      - name: Checkout main for manifest update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+
       - name: Update manifest.json
         env:
           CHECKSUM: ${{ steps.artifact.outputs.checksum }}
@@ -86,10 +93,6 @@ jobs:
 
       - name: Commit updated manifest
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git checkout main
           git add manifest.json
           git commit -m "Update manifest for ${GITHUB_REF_NAME}"
           git push origin main

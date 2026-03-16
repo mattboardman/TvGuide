@@ -161,6 +161,21 @@ public class ScheduleGeneratorTest
     }
 
     [Test]
+    public void GetSlotsFromNow_CrossesWeekBoundary()
+    {
+        var gen = new ScheduleGenerator();
+        var items = CreateTestItems(2, 60);
+        var queryTime = new DateTime(2026, 3, 15, 23, 30, 0, DateTimeKind.Utc);
+
+        var slots = gen.GetSlotsFromNow("test", items, queryTime, 3);
+
+        Assert.That(slots.Count, Is.EqualTo(3));
+        Assert.That(slots[0].StartUtc, Is.EqualTo(new DateTime(2026, 3, 15, 23, 0, 0, DateTimeKind.Utc)));
+        Assert.That(slots[1].StartUtc, Is.EqualTo(new DateTime(2026, 3, 16, 0, 0, 0, DateTimeKind.Utc)));
+        Assert.That(slots[2].StartUtc, Is.EqualTo(new DateTime(2026, 3, 16, 1, 0, 0, DateTimeKind.Utc)));
+    }
+
+    [Test]
     public void GetWeekStart_ReturnsMonday()
     {
         // Wednesday March 11 2026

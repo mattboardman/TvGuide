@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.LiveTv;
+using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.LiveTv;
@@ -17,22 +19,31 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.TvGuide;
 
-public class TvGuideService : ILiveTvService
+public class TvGuideService : ILiveTvService, ISupportsDirectStreamProvider
 {
     private readonly ChannelManager _channelManager;
     private readonly ScheduleGenerator _scheduleGenerator;
+    private readonly IMediaEncoder _mediaEncoder;
     private readonly IServerApplicationHost _appHost;
+    private readonly IConfigurationManager _configurationManager;
+    private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<TvGuideService> _logger;
 
     public TvGuideService(
         ChannelManager channelManager,
         ScheduleGenerator scheduleGenerator,
+        IMediaEncoder mediaEncoder,
         IServerApplicationHost appHost,
+        IConfigurationManager configurationManager,
+        ILoggerFactory loggerFactory,
         ILogger<TvGuideService> logger)
     {
         _channelManager = channelManager;
         _scheduleGenerator = scheduleGenerator;
+        _mediaEncoder = mediaEncoder;
         _appHost = appHost;
+        _configurationManager = configurationManager;
+        _loggerFactory = loggerFactory;
         _logger = logger;
     }
 
@@ -82,82 +93,61 @@ public class TvGuideService : ILiveTvService
     public Task<MediaSourceInfo> GetChannelStream(
         string channelId, string streamId, CancellationToken cancellationToken)
     {
-        var genres = _channelManager.GetGenres();
-        var genre = ChannelManager.ChannelIdToGenre(channelId, genres);
-        var items = _channelManager.GetItemsForGenre(genre);
-
-        // Use the published server URL so clients can reach the stream directly.
-        // GetSmartApiUrl returns PublishedServerUriBySubnet if configured,
-        // otherwise falls back to the network bind address.
-        var baseUrl = _appHost.GetSmartApiUrl(string.Empty);
-        var hlsUrl = $"{baseUrl}/api/tvguide/hls/{channelId}/stream.m3u8";
-
-        _logger.LogInformation("TvGuide GetChannelStream for {ChannelId}, URL: {Url}", channelId, hlsUrl);
-
-        var mediaSource = new MediaSourceInfo
-        {
-            Id = channelId,
-            Path = hlsUrl,
-            Protocol = MediaProtocol.Http,
-            IsRemote = true,
-            IsInfiniteStream = true,
-            BufferMs = 0,
-            // DirectStream = false: Jellyfin 10.11.5 hardcodes EnableDirectStream=false
-            // for HTTP sources (MediaInfoHelper.cs:252), so this has no effect anyway.
-            // DirectPlay = false: Jellyfin proxies HLS via stream.hls?Static=true which
-            // is a static file proxy — the client can't poll for updated segment lists,
-            // breaking live HLS playback. Direct stream is hardcoded off for HTTP in
-            // Jellyfin 10.11.5 (MediaInfoHelper.cs:252). So we always go through the
-            // transcode path (~15s startup) which reads our HLS and re-muxes to its own.
-            SupportsDirectPlay = false,
-            SupportsDirectStream = false,
-            SupportsTranscoding = true,
-            Container = "hls",
-            RequiresOpening = false,
-            RequiresClosing = false,
-            SupportsProbing = false,
-        };
-
-        // Everything is re-encoded: video to H.264 (libx264), audio to AAC.
-        // This ensures uniform codecs across all concat file transitions.
-        mediaSource.MediaStreams = new List<MediaStream>
-        {
-            new MediaStream
-            {
-                Type = MediaStreamType.Video,
-                Index = 0,
-                Codec = "h264",
-                Profile = "High",
-                Level = 41,
-                BitRate = 4000000,
-                Width = 1920,
-                Height = 1080,
-                IsDefault = true,
-                PixelFormat = "yuv420p",
-                BitDepth = 8,
-            },
-            new MediaStream
-            {
-                Type = MediaStreamType.Audio,
-                Index = 1,
-                Codec = "aac",
-                BitRate = 384000,
-                SampleRate = 48000,
-                Channels = 2,
-                ChannelLayout = "stereo",
-                IsDefault = true,
-            },
-        };
-        mediaSource.Bitrate = 4384000;
-
-        return Task.FromResult(mediaSource);
+        return Task.FromResult(CreateManagedMediaSource(channelId));
     }
 
     public Task<List<MediaSourceInfo>> GetChannelStreamMediaSources(
         string channelId, CancellationToken cancellationToken)
     {
-        var source = GetChannelStream(channelId, null, cancellationToken).Result;
-        return Task.FromResult(new List<MediaSourceInfo> { source });
+        return Task.FromResult(new List<MediaSourceInfo> { CreateManagedMediaSource(channelId) });
+    }
+
+    public async Task<ILiveStream> GetChannelStreamWithDirectStreamProvider(
+        string channelId,
+        string streamId,
+        List<ILiveStream> currentLiveStreams,
+        CancellationToken cancellationToken)
+    {
+        var existing = string.IsNullOrEmpty(streamId)
+            ? null
+            : currentLiveStreams.FirstOrDefault(i => string.Equals(i.OriginalStreamId, streamId, StringComparison.OrdinalIgnoreCase));
+
+        if (existing is not null && existing.EnableStreamSharing)
+        {
+            existing.ConsumerCount++;
+            _logger.LogInformation(
+                "Reusing TvGuide live stream {StreamId} for {ChannelId}; consumer count is now {ConsumerCount}",
+                streamId,
+                channelId,
+                existing.ConsumerCount);
+            return existing;
+        }
+
+        var slots = GetSlotsFromNow(channelId);
+        if (slots.Count == 0)
+        {
+            throw new InvalidOperationException($"No scheduled items found for channel {channelId}.");
+        }
+
+        var seekSeconds = Math.Max(0, (DateTime.UtcNow - slots[0].StartUtc).TotalSeconds);
+        var liveStream = new TvGuideLiveStream(
+            channelId,
+            slots,
+            seekSeconds,
+            CreateManagedMediaSource(channelId),
+            _mediaEncoder,
+            _appHost,
+            _configurationManager,
+            _loggerFactory.CreateLogger<TvGuideLiveStream>());
+        liveStream.OriginalStreamId = streamId ?? channelId;
+
+        _logger.LogInformation(
+            "Opening managed TvGuide live stream for {ChannelId} with {SlotCount} scheduled items",
+            channelId,
+            slots.Count);
+
+        await liveStream.Open(cancellationToken).ConfigureAwait(false);
+        return liveStream;
     }
 
     // Timer/recording methods — no-ops for virtual channels.
@@ -195,6 +185,70 @@ public class TvGuideService : ILiveTvService
 
     public Task ResetTuner(string id, CancellationToken cancellationToken)
         => Task.CompletedTask;
+
+    private MediaSourceInfo CreateManagedMediaSource(string channelId)
+    {
+        var mediaSource = new MediaSourceInfo
+        {
+            Id = channelId,
+            Path = string.Empty,
+            Protocol = MediaProtocol.Http,
+            IsRemote = false,
+            IsInfiniteStream = true,
+            BufferMs = 0,
+            SupportsDirectPlay = true,
+            SupportsDirectStream = true,
+            SupportsTranscoding = true,
+            Container = "ts",
+            RequiresOpening = true,
+            RequiresClosing = true,
+            SupportsProbing = false,
+            IgnoreDts = true,
+            UseMostCompatibleTranscodingProfile = true,
+            MediaStreams = new List<MediaStream>
+            {
+                new()
+                {
+                    Type = MediaStreamType.Video,
+                    Index = 0,
+                    Codec = "h264",
+                    Profile = "High",
+                    Level = 41,
+                    BitRate = 4000000,
+                    Width = 1920,
+                    Height = 1080,
+                    IsDefault = true,
+                    PixelFormat = "yuv420p",
+                    BitDepth = 8,
+                    NalLengthSize = "0",
+                    IsInterlaced = false,
+                },
+                new()
+                {
+                    Type = MediaStreamType.Audio,
+                    Index = 1,
+                    Codec = "aac",
+                    BitRate = 384000,
+                    SampleRate = 48000,
+                    Channels = 2,
+                    ChannelLayout = "stereo",
+                    IsDefault = true,
+                },
+            },
+            Bitrate = 4384000,
+        };
+
+        return mediaSource;
+    }
+
+    private List<ScheduleSlot> GetSlotsFromNow(string channelId)
+    {
+        var genres = _channelManager.GetGenres();
+        var genre = ChannelManager.ChannelIdToGenre(channelId, genres);
+        var items = _channelManager.GetItemsForGenre(genre);
+
+        return _scheduleGenerator.GetSlotsFromNow(channelId, items, DateTime.UtcNow, 20);
+    }
 
     private ProgramInfo SlotToProgramInfo(ScheduleSlot slot, string channelId)
     {
