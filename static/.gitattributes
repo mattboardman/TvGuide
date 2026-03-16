@@ -1,0 +1,1 @@
+*.png !filter !diff !merge text=auto
