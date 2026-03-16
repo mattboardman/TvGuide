@@ -85,8 +85,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin master
-          git checkout master
+          git fetch origin main
+          git checkout main
           git add manifest.json
           git commit -m "Update manifest for ${GITHUB_REF_NAME}"
-          git push origin master
+          git push origin main
