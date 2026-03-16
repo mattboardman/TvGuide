@@ -101,6 +101,7 @@ public class TvGuideService : ILiveTvService
             Protocol = MediaProtocol.Http,
             IsRemote = true,
             IsInfiniteStream = true,
+            BufferMs = 0,
             // DirectStream = false: Jellyfin 10.11.5 hardcodes EnableDirectStream=false
             // for HTTP sources (MediaInfoHelper.cs:252), so this has no effect anyway.
             // DirectPlay = false: Jellyfin proxies HLS via stream.hls?Static=true which
