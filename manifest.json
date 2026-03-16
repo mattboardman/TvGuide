@@ -1,0 +1,11 @@
+[
+  {
+    "guid": "b7e3c1d4-5f2a-4890-abcd-9e8f76543210",
+    "name": "TvGuide",
+    "description": "Virtual TV channels from library genres with weekly schedules",
+    "overview": "Auto-generates TV channels by genre from your media library",
+    "owner": "Atlas",
+    "category": "Live TV",
+    "versions": []
+  }
+]
