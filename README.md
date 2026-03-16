@@ -2,7 +2,9 @@
 
 A Jellyfin plugin that auto-generates virtual TV channels from your media library. Each genre in your library becomes a channel with a deterministic weekly schedule, giving you a classic channel-surfing experience. 
 
-Works with all Jellyfin clients out of the box!
+Works with all Jellyfin clients out of the box! 
+
+!Note: Currently only works with jellyfin v10.11.5
 
 ![TvGuide in Jellyfin](static/tv_guide.png?raw=true)
 
