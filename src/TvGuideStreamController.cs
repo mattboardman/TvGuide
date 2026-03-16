@@ -57,51 +57,19 @@ public class TvGuideStreamController : ControllerBase
 
         await Response.StartAsync(cancellationToken).ConfigureAwait(false);
 
-        // Get current + upcoming slots for the concat playlist
-        var slots = _scheduleGenerator.GetSlotsFromNow(channelId, items, DateTime.UtcNow, 10);
-        if (slots.Count == 0)
-        {
-            return;
-        }
-
-        var seekTicks = (DateTime.UtcNow - slots[0].StartUtc).Ticks;
-        var seekSeconds = TimeSpan.FromTicks(seekTicks).TotalSeconds;
+        // Stream just the current item. When it ends, Jellyfin will call
+        // GetChannelStream again for the next scheduled program.
+        var (slot, _) = _scheduleGenerator.GetCurrentSlot(channelId, items, DateTime.UtcNow);
+        var seekSeconds = (DateTime.UtcNow - slot.StartUtc).TotalSeconds;
 
         _logger.LogInformation(
-            "Starting TvGuide stream for channel {ChannelId} ({Genre}), {SlotCount} items queued, first: {Name} at {Seek:F0}s",
-            channelId, genre, slots.Count, slots[0].Item.Name, seekSeconds);
+            "Starting TvGuide stream for channel {ChannelId} ({Genre}): {Name} at {Seek:F0}s",
+            channelId, genre, slot.Item.Name, seekSeconds);
 
-        // Build concat file for FFmpeg
-        var concatFile = Path.GetTempFileName();
-        try
-        {
-            await WriteConcatFile(concatFile, slots, seekSeconds).ConfigureAwait(false);
-            await StreamConcat(concatFile, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            try { System.IO.File.Delete(concatFile); } catch { }
-        }
+        await StreamFile(slot.Item.Path, seekSeconds, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task WriteConcatFile(string path, List<ScheduleSlot> slots, double seekSeconds)
-    {
-        using var writer = new StreamWriter(path);
-        await writer.WriteLineAsync("ffconcat version 1.0").ConfigureAwait(false);
-
-        for (int i = 0; i < slots.Count; i++)
-        {
-            var filePath = slots[i].Item.Path.Replace("'", "'\\''");
-            await writer.WriteLineAsync($"file '{filePath}'").ConfigureAwait(false);
-
-            if (i == 0 && seekSeconds > 1.0)
-            {
-                await writer.WriteLineAsync($"inpoint {seekSeconds:F3}").ConfigureAwait(false);
-            }
-        }
-    }
-
-    private async Task StreamConcat(string concatFile, CancellationToken cancellationToken)
+    private async Task StreamFile(string filePath, double seekSeconds, CancellationToken cancellationToken)
     {
         var ffmpegPath = _mediaEncoder.EncoderPath;
 
@@ -116,14 +84,23 @@ public class TvGuideStreamController : ControllerBase
         };
 
         var args = process.StartInfo.ArgumentList;
-        args.Add("-f");
-        args.Add("concat");
-        args.Add("-safe");
-        args.Add("0");
+        args.Add("-nostdin");
+
+        if (seekSeconds > 1.0)
+        {
+            args.Add("-ss");
+            args.Add(seekSeconds.ToString("F3"));
+        }
+
         args.Add("-i");
-        args.Add(concatFile);
+        args.Add(filePath);
+        args.Add("-map");
+        args.Add("0:v:0");
+        args.Add("-map");
+        args.Add("0:a:0");
         args.Add("-c");
         args.Add("copy");
+        args.Add("-sn");
         args.Add("-f");
         args.Add("matroska");
         args.Add("-fflags");
@@ -135,12 +112,13 @@ public class TvGuideStreamController : ControllerBase
         string stderr = null;
         var stderrTask = Task.Run(() => stderr = process.StandardError.ReadToEnd(), CancellationToken.None);
 
+        long totalBytes = 0;
+
         try
         {
             var buffer = new byte[64 * 1024];
             var stdout = process.StandardOutput.BaseStream;
             int bytesRead;
-            long totalBytes = 0;
 
             while ((bytesRead = await stdout.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
             {
@@ -149,23 +127,16 @@ public class TvGuideStreamController : ControllerBase
                 totalBytes += bytesRead;
             }
 
-            _logger.LogDebug("TvGuide stream completed: {TotalMB:F1} MB written", totalBytes / (1024.0 * 1024.0));
-
-            if (totalBytes == 0)
-            {
-                await stderrTask.ConfigureAwait(false);
-                _logger.LogError("TvGuide FFmpeg produced 0 bytes. Exit code: {Exit}, stderr: {Stderr}",
-                    process.HasExited ? process.ExitCode : -1,
-                    stderr?.Length > 2000 ? stderr.Substring(stderr.Length - 2000) : stderr);
-            }
+            _logger.LogInformation("TvGuide stream completed: {TotalMB:F1} MB written", totalBytes / (1024.0 * 1024.0));
         }
         catch (OperationCanceledException)
         {
-            _logger.LogInformation("TvGuide stream cancelled (client disconnected)");
+            _logger.LogInformation("TvGuide stream cancelled (client disconnected), {TotalMB:F1} MB written",
+                totalBytes / (1024.0 * 1024.0));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "TvGuide stream error");
+            _logger.LogError(ex, "TvGuide stream error after {TotalMB:F1} MB", totalBytes / (1024.0 * 1024.0));
         }
         finally
         {
@@ -182,6 +153,21 @@ public class TvGuideStreamController : ControllerBase
             }
 
             await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+            await stderrTask.ConfigureAwait(false);
+
+            var exitCode = process.ExitCode;
+            var stderrTail = stderr?.Length > 2000 ? stderr.Substring(stderr.Length - 2000) : stderr;
+
+            if (exitCode != 0 && exitCode != 137)
+            {
+                _logger.LogError("TvGuide FFmpeg exited {ExitCode}, {TotalMB:F1} MB written. stderr: {Stderr}",
+                    exitCode, totalBytes / (1024.0 * 1024.0), stderrTail);
+            }
+            else
+            {
+                _logger.LogDebug("TvGuide FFmpeg exited {ExitCode}, {TotalMB:F1} MB. stderr: {Stderr}",
+                    exitCode, totalBytes / (1024.0 * 1024.0), stderrTail);
+            }
         }
     }
 }

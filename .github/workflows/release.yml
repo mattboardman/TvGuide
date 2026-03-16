@@ -1,0 +1,92 @@
+name: Build & Release Plugin
+
+on:
+  push:
+    tags: ["v*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@0.14.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+
+      - name: Build TvGuide
+        run: bazel build //:TvGuide
+
+      - name: Prepare release artifact
+        id: artifact
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PLUGIN_VERSION="${VERSION}.0.0"
+          TARGET_ABI="10.11.5.0"
+
+          STAGE_DIR="TvGuide_${PLUGIN_VERSION}"
+          mkdir -p "${STAGE_DIR}"
+          cp bazel-bin/TvGuide/net9.0/TvGuide.dll "${STAGE_DIR}/"
+          cp meta.json "${STAGE_DIR}/"
+
+          ZIP_NAME="${TARGET_ABI}.-. TvGuide_${PLUGIN_VERSION}.zip"
+          zip -r "${ZIP_NAME}" "${STAGE_DIR}"
+
+          CHECKSUM=$(md5sum "${ZIP_NAME}" | awk '{print $1}')
+
+          echo "zip_name=${ZIP_NAME}" >> "$GITHUB_OUTPUT"
+          echo "checksum=${CHECKSUM}" >> "$GITHUB_OUTPUT"
+          echo "plugin_version=${PLUGIN_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "target_abi=${TARGET_ABI}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.artifact.outputs.zip_name }}
+          generate_release_notes: true
+
+      - name: Update manifest.json
+        env:
+          CHECKSUM: ${{ steps.artifact.outputs.checksum }}
+          PLUGIN_VERSION: ${{ steps.artifact.outputs.plugin_version }}
+          TARGET_ABI: ${{ steps.artifact.outputs.target_abi }}
+          ZIP_NAME: ${{ steps.artifact.outputs.zip_name }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          SOURCE_URL="${{ github.server_url }}/${{ github.repository }}/releases/download/${TAG}/${ZIP_NAME}"
+
+          jq --arg checksum "${CHECKSUM}" \
+             --arg version "${PLUGIN_VERSION}" \
+             --arg abi "${TARGET_ABI}" \
+             --arg url "${SOURCE_URL}" \
+             --arg ts "${TIMESTAMP}" \
+             --arg changelog "Release ${TAG}" \
+             '.[0].versions = [{
+                checksum: $checksum,
+                changelog: $changelog,
+                targetAbi: $abi,
+                sourceUrl: $url,
+                timestamp: $ts,
+                version: $version
+              }] + .[0].versions' manifest.json > manifest.tmp && mv manifest.tmp manifest.json
+
+      - name: Commit updated manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin master
+          git checkout master
+          git add manifest.json
+          git commit -m "Update manifest for ${GITHUB_REF_NAME}"
+          git push origin master

@@ -86,7 +86,11 @@ public class TvGuideService : ILiveTvService
         var genre = ChannelManager.ChannelIdToGenre(channelId, genres);
         var items = _channelManager.GetItemsForGenre(genre);
 
-        var streamUrl = $"{_appHost.GetApiUrlForLocalAccess()}/api/tvguide/stream/{channelId}";
+        // Use the published server URL so clients can reach the stream directly.
+        // GetSmartApiUrl returns PublishedServerUriBySubnet if configured,
+        // otherwise falls back to the network bind address.
+        var baseUrl = _appHost.GetSmartApiUrl(string.Empty);
+        var streamUrl = $"{baseUrl}/api/tvguide/stream/{channelId}";
 
         _logger.LogInformation("TvGuide GetChannelStream for {ChannelId}, URL: {Url}", channelId, streamUrl);
 
@@ -97,23 +101,28 @@ public class TvGuideService : ILiveTvService
             Protocol = MediaProtocol.Http,
             IsInfiniteStream = true,
             SupportsDirectPlay = true,
-            SupportsDirectStream = false,
-            SupportsTranscoding = false,
+            SupportsDirectStream = true,
+            SupportsTranscoding = true,
             Container = "matroska",
             RequiresOpening = false,
             RequiresClosing = false,
             SupportsProbing = false,
         };
 
-        // Copy media stream info from the current item so Jellyfin knows
-        // the source codecs and can make better transcoding decisions
+        // Copy the first video and audio stream from the current item.
+        // Subtitles are excluded — they can't be served through the stream
+        // and cause GUID parse errors in Jellyfin's subtitle encoder.
         if (items.Count > 0)
         {
             var (slot, _) = _scheduleGenerator.GetCurrentSlot(channelId, items, DateTime.UtcNow);
             var itemMediaSources = slot.Item.GetMediaSources(false);
             if (itemMediaSources.Count > 0)
             {
-                mediaSource.MediaStreams = itemMediaSources[0].MediaStreams;
+                mediaSource.MediaStreams = itemMediaSources[0].MediaStreams
+                    .Where(s => s.Type == MediaStreamType.Video || s.Type == MediaStreamType.Audio)
+                    .GroupBy(s => s.Type)
+                    .Select(g => g.First())
+                    .ToList();
                 mediaSource.Bitrate = itemMediaSources[0].Bitrate;
             }
         }
