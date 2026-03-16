@@ -158,7 +158,7 @@ public sealed class HlsManager : IDisposable
         args.Add("-fflags");
         args.Add("+discardcorrupt+genpts");
         TvGuideFfmpeg.AddNormalizedConcatInputs(args, slots, seekSeconds, _mediaEncoder);
-        TvGuideFfmpeg.AddNormalizedOutputEncoding(args, slots.Count);
+        TvGuideFfmpeg.AddNormalizedOutputEncoding(args, slots, 3.0);
         args.Add("-f");
         args.Add("hls");
         args.Add("-hls_time");

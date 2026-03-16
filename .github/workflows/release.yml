@@ -58,13 +58,6 @@ jobs:
           files: ${{ steps.artifact.outputs.zip_name }}
           generate_release_notes: true
 
-      - name: Checkout main for manifest update
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git checkout main
-
       - name: Update manifest.json
         env:
           CHECKSUM: ${{ steps.artifact.outputs.checksum }}
@@ -73,6 +66,11 @@ jobs:
           ZIP_NAME: ${{ steps.artifact.outputs.zip_name }}
           TAG: ${{ github.ref_name }}
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout origin/main -- manifest.json
+
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           SOURCE_URL="${{ github.server_url }}/${{ github.repository }}/releases/download/${TAG}/${ZIP_NAME}"
 
@@ -91,8 +89,7 @@ jobs:
                 version: $version
               }] + .[0].versions' manifest.json > manifest.tmp && mv manifest.tmp manifest.json
 
-      - name: Commit updated manifest
-        run: |
+          git checkout main
           git add manifest.json
           git commit -m "Update manifest for ${GITHUB_REF_NAME}"
           git push origin main

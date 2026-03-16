@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.MediaEncoding;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.MediaInfo;
 
@@ -30,10 +32,15 @@ internal static class TvGuideFfmpeg
         }
     }
 
-    public static void AddNormalizedOutputEncoding(ICollection<string> args, int inputCount)
+    public static void AddNormalizedOutputEncoding(
+        ICollection<string> args,
+        IReadOnlyList<ScheduleSlot> slots,
+        double keyFrameIntervalSeconds = 3.0)
     {
+        var outputFps = DetermineOutputFps(slots);
+
         args.Add("-filter_complex");
-        args.Add(BuildConcatFilterGraph(inputCount));
+        args.Add(BuildConcatFilterGraph(slots.Count, outputFps.Argument));
         args.Add("-map");
         args.Add("[vout]");
         args.Add("-map");
@@ -44,8 +51,10 @@ internal static class TvGuideFfmpeg
         args.Add("ultrafast");
         args.Add("-tune");
         args.Add("zerolatency");
+        args.Add("-sc_threshold");
+        args.Add("0");
         args.Add("-force_key_frames");
-        args.Add("expr:gte(t,n_forced*3)");
+        args.Add("expr:gte(t,n_forced*" + keyFrameIntervalSeconds.ToString("0.###", CultureInfo.InvariantCulture) + ")");
         args.Add("-b:v");
         args.Add("4M");
         args.Add("-pix_fmt");
@@ -63,7 +72,7 @@ internal static class TvGuideFfmpeg
         args.Add("-sn");
     }
 
-    private static string BuildConcatFilterGraph(int inputCount)
+    private static string BuildConcatFilterGraph(int inputCount, string outputFps)
     {
         var graph = new StringBuilder();
 
@@ -74,7 +83,9 @@ internal static class TvGuideFfmpeg
                 .Append(":v]scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2,")
                 .Append("pad=1920:1080:(ow-iw)/2:(oh-ih)/2,")
                 .Append("setsar=1,")
-                .Append("fps=30000/1001,")
+                .Append("fps=")
+                .Append(outputFps)
+                .Append(',')
                 .Append("format=yuv420p,")
                 .Append("settb=AVTB,")
                 .Append("setpts=PTS-STARTPTS")
@@ -102,6 +113,51 @@ internal static class TvGuideFfmpeg
             .Append(":v=1:a=1[vout][aout]");
 
         return graph.ToString();
+    }
+
+    private static OutputFps DetermineOutputFps(IReadOnlyList<ScheduleSlot> slots)
+    {
+        if (slots.Count == 0)
+        {
+            return new OutputFps("30000/1001", 29.97003);
+        }
+
+        var videoStream = slots[0].Item
+            .GetMediaStreams()
+            .FirstOrDefault(stream => stream.Type == MediaStreamType.Video);
+
+        var referenceFps = videoStream?.ReferenceFrameRate;
+        if (!referenceFps.HasValue || referenceFps.Value <= 0)
+        {
+            return new OutputFps("30000/1001", 29.97003);
+        }
+
+        var chosen = new OutputFps("30000/1001", 29.97003);
+        var candidates = new OutputFps[]
+        {
+            new("24000/1001", 23.976024),
+            new("24", 24.0),
+            new("25", 25.0),
+            new("30000/1001", 29.97003),
+            new("30", 30.0),
+            new("50", 50.0),
+            new("60000/1001", 59.94006),
+            new("60", 60.0),
+        };
+
+        var smallestDelta = double.MaxValue;
+
+        foreach (var candidate in candidates)
+        {
+            var delta = System.Math.Abs(referenceFps.Value - candidate.NumericValue);
+            if (delta < smallestDelta)
+            {
+                smallestDelta = delta;
+                chosen = candidate;
+            }
+        }
+
+        return chosen;
     }
 
     private static string BuildInputArgument(BaseItem item, IMediaEncoder mediaEncoder)
@@ -144,4 +200,6 @@ internal static class TvGuideFfmpeg
 
         return inputArgument;
     }
+
+    private readonly record struct OutputFps(string Argument, double NumericValue);
 }

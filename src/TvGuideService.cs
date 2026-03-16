@@ -200,13 +200,13 @@ public class TvGuideService : ILiveTvService, ISupportsDirectStreamProvider
             IsRemote = false,
             IsInfiniteStream = true,
             BufferMs = 0,
-            SupportsDirectPlay = true,
-            SupportsDirectStream = true,
+            SupportsDirectPlay = false,
+            SupportsDirectStream = false,
             SupportsTranscoding = true,
             Container = "ts",
             RequiresOpening = true,
             RequiresClosing = true,
-            SupportsProbing = false,
+            SupportsProbing = true,
             IgnoreDts = true,
             UseMostCompatibleTranscodingProfile = true,
             MediaStreams = new List<MediaStream>
@@ -214,7 +214,9 @@ public class TvGuideService : ILiveTvService, ISupportsDirectStreamProvider
                 new()
                 {
                     Type = MediaStreamType.Video,
-                    Index = 0,
+                    // Leave indexes unknown so Jellyfin probes the opened live stream
+                    // and replaces the placeholder live-TV metadata.
+                    Index = -1,
                     Codec = "h264",
                     Profile = "High",
                     Level = 41,
@@ -230,7 +232,7 @@ public class TvGuideService : ILiveTvService, ISupportsDirectStreamProvider
                 new()
                 {
                     Type = MediaStreamType.Audio,
-                    Index = 1,
+                    Index = -1,
                     Codec = "aac",
                     BitRate = 384000,
                     SampleRate = 48000,
