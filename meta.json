@@ -6,7 +6,7 @@
     "owner": "Atlas",
     "category": "Live TV",
     "version": "1.0.0.0",
-    "targetAbi": "10.11.5.0",
+    "targetAbi": "10.11.6.0",
     "status": "Active",
     "autoUpdate": false,
     "assemblies": ["TvGuide.dll"]

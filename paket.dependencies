@@ -3,14 +3,14 @@ group tvguide_deps
     storage: none
     source https://api.nuget.org/v3/index.json
 
-    nuget Jellyfin.Controller 10.11.5
-    nuget Jellyfin.Model 10.11.5
-    nuget Jellyfin.Extensions 10.11.5
-    nuget Jellyfin.Data 10.11.5
-    nuget Jellyfin.Database.Implementations 10.11.5
-    nuget Jellyfin.Common 10.11.5
-    nuget Jellyfin.Naming 10.11.5
-    nuget Jellyfin.MediaEncoding.Keyframes 10.11.5
+    nuget Jellyfin.Controller 10.11.6
+    nuget Jellyfin.Model 10.11.6
+    nuget Jellyfin.Extensions 10.11.6
+    nuget Jellyfin.Data 10.11.6
+    nuget Jellyfin.Database.Implementations 10.11.6
+    nuget Jellyfin.Common 10.11.6
+    nuget Jellyfin.Naming 10.11.6
+    nuget Jellyfin.MediaEncoding.Keyframes 10.11.6
     nuget Microsoft.Extensions.DependencyInjection.Abstractions ~> 9.0
     nuget Microsoft.Extensions.Logging.Abstractions ~> 9.0
     nuget Microsoft.Extensions.Logging ~> 9.0

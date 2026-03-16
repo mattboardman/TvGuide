@@ -4,7 +4,6 @@ A Jellyfin plugin that auto-generates virtual TV channels from your media librar
 
 Works with all Jellyfin clients out of the box! 
 
-!Note: Currently only works with jellyfin v10.11.5
 
 ![TvGuide in Jellyfin](static/tv_guide.png?raw=true)
 
@@ -51,6 +50,27 @@ cp meta.json /var/lib/jellyfin/data/plugins/TvGuide_1.0.0.0/
 
 3. Restart Jellyfin
 4. Go to **Dashboard > Scheduled Tasks > Live TV > Refresh Guide** and run it — your genre channels will appear under **Live TV > Guide**
+
+## Development
+
+### Updating Jellyfin version
+
+1. Update the Jellyfin package versions in `paket.dependencies`
+2. Run `paket update` to resolve the new versions and regenerate `paket.lock`:
+   ```sh
+   bazel-$(basename $(pwd))/external/rules_dotnet++dotnet+dotnet_x86_64-unknown-linux-gnu/dotnet tool run paket update --group tvguide_deps
+   ```
+3. Regenerate the Bazel dependency file from the updated lock:
+   ```sh
+   bazel run @rules_dotnet//tools/paket2bazel:paket2bazel -- \
+     --dependencies-file $(pwd)/paket.dependencies \
+     --output-folder $(pwd)
+   ```
+4. Update `targetAbi` in `meta.json` and `TARGET_ABI` in `.github/workflows/release.yml`
+5. Verify the build:
+   ```sh
+   bazel build //:TvGuide
+   ```
 
 ## License
 

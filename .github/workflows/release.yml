@@ -34,7 +34,7 @@ jobs:
           IFS='.' read -ra PARTS <<< "${VERSION}"
           while [ ${#PARTS[@]} -lt 4 ]; do PARTS+=("0"); done
           PLUGIN_VERSION="${PARTS[0]}.${PARTS[1]}.${PARTS[2]}.${PARTS[3]}"
-          TARGET_ABI="10.11.5.0"
+          TARGET_ABI="10.11.6.0"
 
           STAGE_DIR="TvGuide_${PLUGIN_VERSION}"
           mkdir -p "${STAGE_DIR}"

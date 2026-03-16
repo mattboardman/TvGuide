@@ -52,10 +52,14 @@ public class TvGuideService : ILiveTvService, ISupportsDirectStreamProvider
     public string HomePageUrl => string.Empty;
 
     public Task<IEnumerable<ChannelInfo>> GetChannelsAsync(CancellationToken cancellationToken)
+        => GetChannelsInternalAsync(cancellationToken);
+
+    private async Task<IEnumerable<ChannelInfo>> GetChannelsInternalAsync(CancellationToken cancellationToken)
     {
         var channels = _channelManager.GetChannels();
+        await _channelManager.ClearPersistedChannelImagesAsync(channels, Name, cancellationToken).ConfigureAwait(false);
         _logger.LogInformation("TvGuide providing {Count} genre channels", channels.Count);
-        return Task.FromResult<IEnumerable<ChannelInfo>>(channels);
+        return channels;
     }
 
     public Task<IEnumerable<ProgramInfo>> GetProgramsAsync(
