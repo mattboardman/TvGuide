@@ -54,4 +54,4 @@ cp meta.json /var/lib/jellyfin/data/plugins/TvGuide_1.0.0.0/
 
 ## License
 
-[MIT](LICENSE)
+[GPLv3](LICENSE)

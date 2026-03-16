@@ -90,42 +90,64 @@ public class TvGuideService : ILiveTvService
         // GetSmartApiUrl returns PublishedServerUriBySubnet if configured,
         // otherwise falls back to the network bind address.
         var baseUrl = _appHost.GetSmartApiUrl(string.Empty);
-        var streamUrl = $"{baseUrl}/api/tvguide/stream/{channelId}";
+        var hlsUrl = $"{baseUrl}/api/tvguide/hls/{channelId}/stream.m3u8";
 
-        _logger.LogInformation("TvGuide GetChannelStream for {ChannelId}, URL: {Url}", channelId, streamUrl);
+        _logger.LogInformation("TvGuide GetChannelStream for {ChannelId}, URL: {Url}", channelId, hlsUrl);
 
         var mediaSource = new MediaSourceInfo
         {
             Id = channelId,
-            Path = streamUrl,
+            Path = hlsUrl,
             Protocol = MediaProtocol.Http,
+            IsRemote = true,
             IsInfiniteStream = true,
-            SupportsDirectPlay = true,
-            SupportsDirectStream = true,
+            // DirectStream = false: Jellyfin 10.11.5 hardcodes EnableDirectStream=false
+            // for HTTP sources (MediaInfoHelper.cs:252), so this has no effect anyway.
+            // DirectPlay = false: Jellyfin proxies HLS via stream.hls?Static=true which
+            // is a static file proxy — the client can't poll for updated segment lists,
+            // breaking live HLS playback. Direct stream is hardcoded off for HTTP in
+            // Jellyfin 10.11.5 (MediaInfoHelper.cs:252). So we always go through the
+            // transcode path (~15s startup) which reads our HLS and re-muxes to its own.
+            SupportsDirectPlay = false,
+            SupportsDirectStream = false,
             SupportsTranscoding = true,
-            Container = "matroska",
+            Container = "hls",
             RequiresOpening = false,
             RequiresClosing = false,
             SupportsProbing = false,
         };
 
-        // Copy the first video and audio stream from the current item.
-        // Subtitles are excluded — they can't be served through the stream
-        // and cause GUID parse errors in Jellyfin's subtitle encoder.
-        if (items.Count > 0)
+        // Everything is re-encoded: video to H.264 (libx264), audio to AAC.
+        // This ensures uniform codecs across all concat file transitions.
+        mediaSource.MediaStreams = new List<MediaStream>
         {
-            var (slot, _) = _scheduleGenerator.GetCurrentSlot(channelId, items, DateTime.UtcNow);
-            var itemMediaSources = slot.Item.GetMediaSources(false);
-            if (itemMediaSources.Count > 0)
+            new MediaStream
             {
-                mediaSource.MediaStreams = itemMediaSources[0].MediaStreams
-                    .Where(s => s.Type == MediaStreamType.Video || s.Type == MediaStreamType.Audio)
-                    .GroupBy(s => s.Type)
-                    .Select(g => g.First())
-                    .ToList();
-                mediaSource.Bitrate = itemMediaSources[0].Bitrate;
-            }
-        }
+                Type = MediaStreamType.Video,
+                Index = 0,
+                Codec = "h264",
+                Profile = "High",
+                Level = 41,
+                BitRate = 4000000,
+                Width = 1920,
+                Height = 1080,
+                IsDefault = true,
+                PixelFormat = "yuv420p",
+                BitDepth = 8,
+            },
+            new MediaStream
+            {
+                Type = MediaStreamType.Audio,
+                Index = 1,
+                Codec = "aac",
+                BitRate = 384000,
+                SampleRate = 48000,
+                Channels = 2,
+                ChannelLayout = "stereo",
+                IsDefault = true,
+            },
+        };
+        mediaSource.Bitrate = 4384000;
 
         return Task.FromResult(mediaSource);
     }
