@@ -4,7 +4,7 @@ A Jellyfin plugin that auto-generates virtual TV channels from your media librar
 
 Works with all Jellyfin clients out of the box!
 
-![TvGuide in Jellyfin](static/tv_guide.png)
+![TvGuide in Jellyfin](static/tv_guide.png?raw=true)
 
 ## How it works
 
