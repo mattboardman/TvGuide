@@ -1,0 +1,18 @@
+module(
+    name = "tvguide",
+    version = "0.0.1",
+)
+
+bazel_dep(name = "rules_dotnet", version = "0.21.5")
+
+dotnet = use_extension("@rules_dotnet//dotnet:extensions.bzl", "dotnet")
+dotnet.toolchain(dotnet_version = "10.0.100")
+use_repo(dotnet, "dotnet_toolchains")
+
+register_toolchains("@dotnet_toolchains//:all")
+
+jellyfin_nuget = use_extension(
+    "//:paket.tvguide_deps_extension.bzl",
+    "tvguide_deps_extension",
+)
+use_repo(jellyfin_nuget, "paket.tvguide_deps")

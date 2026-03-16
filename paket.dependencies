@@ -1,0 +1,34 @@
+group tvguide_deps
+    framework: net9.0
+    storage: none
+    source https://api.nuget.org/v3/index.json
+
+    nuget Jellyfin.Controller 10.11.5
+    nuget Jellyfin.Model 10.11.5
+    nuget Jellyfin.Extensions 10.11.5
+    nuget Jellyfin.Data 10.11.5
+    nuget Jellyfin.Database.Implementations 10.11.5
+    nuget Jellyfin.Common 10.11.5
+    nuget Jellyfin.Naming 10.11.5
+    nuget Jellyfin.MediaEncoding.Keyframes 10.11.5
+    nuget Microsoft.Extensions.DependencyInjection.Abstractions ~> 9.0
+    nuget Microsoft.Extensions.Logging.Abstractions ~> 9.0
+    nuget Microsoft.Extensions.Logging ~> 9.0
+    nuget Microsoft.Extensions.Options ~> 9.0
+    nuget Microsoft.Extensions.Primitives ~> 9.0
+    nuget Microsoft.Extensions.Configuration ~> 9.0
+    nuget Microsoft.Extensions.Configuration.Abstractions ~> 9.0
+    nuget Microsoft.Extensions.Configuration.Binder ~> 9.0
+    nuget Microsoft.Extensions.Caching.Abstractions ~> 9.0
+    nuget Microsoft.Extensions.Caching.Memory ~> 9.0
+    nuget Microsoft.Extensions.DependencyInjection ~> 9.0
+    nuget Microsoft.EntityFrameworkCore ~> 9.0
+    nuget Microsoft.EntityFrameworkCore.Abstractions ~> 9.0
+    nuget Microsoft.EntityFrameworkCore.Relational ~> 9.0
+    nuget System.Text.Json ~> 9.0
+    nuget System.Diagnostics.DiagnosticSource ~> 9.0
+    nuget System.IO.Pipelines ~> 9.0
+    nuget System.Text.Encodings.Web ~> 9.0
+    nuget System.Threading.Tasks.Dataflow ~> 9.0
+    nuget NUnit 4.3.2
+    nuget NUnit3TestAdapter 4.6.0

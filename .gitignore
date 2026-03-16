@@ -1,0 +1,5 @@
+# bazel
+bazel-bin
+bazel-tvguide
+bazel-out
+bazel-testlogs
