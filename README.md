@@ -27,6 +27,19 @@ The output DLL is at `bazel-bin/TvGuide/TvGuide.dll`.
 
 ## Install
 
+### From plugin repository
+
+1. In Jellyfin, go to **Dashboard > Plugins > Repositories**
+2. Add a new repository with the URL:
+   ```
+   https://raw.githubusercontent.com/mattboardman/TvGuide/main/manifest.json
+   ```
+3. Go to **Catalog**, find **TvGuide** under **Live TV**, and install it
+4. Restart Jellyfin
+5. Go to **Dashboard > Scheduled Tasks > Live TV > Refresh Guide** and run it — your genre channels will appear under **Live TV > Guide**
+
+### Manual install
+
 1. Build the plugin (see above)
 2. Copy the DLL and `meta.json` into your Jellyfin plugins directory:
 

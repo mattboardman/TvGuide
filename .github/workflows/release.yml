@@ -30,7 +30,10 @@ jobs:
         id: artifact
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          PLUGIN_VERSION="${VERSION}.0.0"
+          # Pad to exactly 4 dotted parts (e.g. 1.0.1 -> 1.0.1.0)
+          IFS='.' read -ra PARTS <<< "${VERSION}"
+          while [ ${#PARTS[@]} -lt 4 ]; do PARTS+=("0"); done
+          PLUGIN_VERSION="${PARTS[0]}.${PARTS[1]}.${PARTS[2]}.${PARTS[3]}"
           TARGET_ABI="10.11.5.0"
 
           STAGE_DIR="TvGuide_${PLUGIN_VERSION}"
