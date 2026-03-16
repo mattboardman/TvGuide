@@ -35,8 +35,7 @@ cp meta.json /var/lib/jellyfin/data/plugins/TvGuide_1.0.0.0/
 ```
 
 3. Restart Jellyfin
-4. Go to **Dashboard > Live TV** and add the **TvGuide** tuner
-5. Go to **Dashboard > Scheduled Tasks > Live TV > Refresh Guide** and run it — your genre channels will appear under **Live TV > Guide**
+4. Go to **Dashboard > Scheduled Tasks > Live TV > Refresh Guide** and run it — your genre channels will appear under **Live TV > Guide**
 
 ## License
 
