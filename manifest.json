@@ -6,6 +6,15 @@
     "overview": "Auto-generates TV channels by genre from your media library",
     "owner": "Atlas",
     "category": "Live TV",
-    "versions": []
+    "versions": [
+      {
+        "checksum": "9dea4fda69d690c3d064448ed171b042",
+        "changelog": "Release v1.0.1.2",
+        "targetAbi": "10.11.5.0",
+        "sourceUrl": "https://github.com/mattboardman/TvGuide/releases/download/v1.0.1.2/10.11.5.0.-. TvGuide_1.0.1.2.zip",
+        "timestamp": "2026-03-16T18:42:54Z",
+        "version": "1.0.1.2"
+      }
+    ]
   }
 ]
