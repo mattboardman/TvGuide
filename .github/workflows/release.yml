@@ -41,7 +41,7 @@ jobs:
           cp bazel-bin/TvGuide/net9.0/TvGuide.dll "${STAGE_DIR}/"
           cp meta.json "${STAGE_DIR}/"
 
-          ZIP_NAME="${TARGET_ABI}.-. TvGuide_${PLUGIN_VERSION}.zip"
+          ZIP_NAME="${TARGET_ABI}.-.TvGuide_${PLUGIN_VERSION}.zip"
           zip -r "${ZIP_NAME}" "${STAGE_DIR}"
 
           CHECKSUM=$(md5sum "${ZIP_NAME}" | awk '{print $1}')
