@@ -8,6 +8,14 @@
     "category": "Live TV",
     "versions": [
       {
+        "checksum": "ae515dd12295aa65ea5e35f6a77647b6",
+        "changelog": "Release v1.0.2.5",
+        "targetAbi": "10.11.6.0",
+        "sourceUrl": "https://github.com/mattboardman/TvGuide/releases/download/v1.0.2.5/10.11.6.0.-.TvGuide_1.0.2.5.zip",
+        "timestamp": "2026-03-17T07:04:40Z",
+        "version": "1.0.2.5"
+      },
+      {
         "checksum": "17fe5076e042d94915e37383e83fe0c5",
         "changelog": "Release v1.0.2.3",
         "targetAbi": "10.11.6.0",
