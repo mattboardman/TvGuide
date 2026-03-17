@@ -61,6 +61,14 @@ public sealed class HlsManager : IDisposable
         }
     }
 
+    public void StopAllSessions()
+    {
+        foreach (var channelId in _sessions.Keys.ToList())
+        {
+            StopSession(channelId);
+        }
+    }
+
     /// <summary>
     /// Updates the last-access timestamp so the idle cleanup doesn't kill
     /// a session that is still being watched.
@@ -96,9 +104,7 @@ public sealed class HlsManager : IDisposable
     {
         try
         {
-            var genres = _channelManager.GetGenres();
-            var genre = ChannelManager.ChannelIdToGenre(channelId, genres);
-            var items = _channelManager.GetItemsForGenre(genre);
+            var items = _channelManager.ResolveItemsForChannel(channelId);
 
             if (items.Count == 0)
             {
@@ -152,13 +158,14 @@ public sealed class HlsManager : IDisposable
         };
 
         var args = process.StartInfo.ArgumentList;
+        var config = Plugin.GetCurrentConfiguration();
         args.Add("-nostdin");
         args.Add("-err_detect");
         args.Add("ignore_err");
         args.Add("-fflags");
         args.Add("+discardcorrupt+genpts");
         TvGuideFfmpeg.AddNormalizedConcatInputs(args, slots, seekSeconds, _mediaEncoder);
-        TvGuideFfmpeg.AddNormalizedOutputEncoding(args, slots, 3.0);
+        TvGuideFfmpeg.AddNormalizedOutputEncoding(args, slots, config, 3.0);
         args.Add("-f");
         args.Add("hls");
         args.Add("-hls_time");

@@ -1,13 +1,18 @@
 {
-    "guid": "b7e3c1d4-5f2a-4890-abcd-9e8f76543210",
-    "name": "TvGuide",
-    "description": "Virtual TV channels from library genres with weekly schedules",
-    "overview": "Auto-generates TV channels by genre from your media library",
-    "owner": "Atlas",
-    "category": "Live TV",
-    "version": "1.0.0.0",
-    "targetAbi": "10.11.6.0",
-    "status": "Active",
-    "autoUpdate": false,
-    "assemblies": ["TvGuide.dll"]
+  "guid": "b7e3c1d4-5f2a-4890-abcd-9e8f76543210",
+  "name": "TvGuide",
+  "description": "Virtual TV channels from library genres with weekly schedules",
+  "overview": "Auto-generates TV channels by genre from your media library",
+  "owner": "Atlas",
+  "category": "Live TV",
+  "version": "1.0.0.0",
+  "targetAbi": "10.11.6.0",
+  "status": "Active",
+  "autoUpdate": false,
+  "assemblies": [
+    "TvGuide.dll",
+    "OpenAI.dll",
+    "System.ClientModel.dll",
+    "System.Memory.Data.dll"
+  ]
 }

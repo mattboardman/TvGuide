@@ -66,7 +66,7 @@ public sealed class TvGuideLiveStream : ILiveStream, IDirectStreamProvider
         _tempFilePath = Path.Combine(configurationManager.GetTranscodePath(), UniqueId + ".ts");
 
         ConsumerCount = 1;
-        EnableStreamSharing = true;
+        EnableStreamSharing = false;
         TunerHostId = string.Empty;
         OriginalStreamId = string.Empty;
     }
@@ -161,7 +161,7 @@ public sealed class TvGuideLiveStream : ILiveStream, IDirectStreamProvider
             }
         }
 
-        await DeleteTempFileAsync().ConfigureAwait(false);
+        await DeleteFileAsync(_tempFilePath).ConfigureAwait(false);
     }
 
     public Stream GetStream()
@@ -236,13 +236,14 @@ public sealed class TvGuideLiveStream : ILiveStream, IDirectStreamProvider
         };
 
         var args = process.StartInfo.ArgumentList;
+        var config = Plugin.GetCurrentConfiguration();
         args.Add("-nostdin");
         args.Add("-err_detect");
         args.Add("ignore_err");
         args.Add("-fflags");
         args.Add("+discardcorrupt+genpts");
         TvGuideFfmpeg.AddNormalizedConcatInputs(args, _slots, _seekSeconds, _mediaEncoder);
-        TvGuideFfmpeg.AddNormalizedOutputEncoding(args, _slots, 0.25);
+        TvGuideFfmpeg.AddNormalizedOutputEncoding(args, _slots, config, 0.25);
         args.Add("-muxdelay");
         args.Add("0");
         args.Add("-muxpreload");
@@ -319,27 +320,27 @@ public sealed class TvGuideLiveStream : ILiveStream, IDirectStreamProvider
         return stderr[^2000..];
     }
 
-    private async Task DeleteTempFileAsync(int retryCount = 0)
+    private async Task DeleteFileAsync(string path, int retryCount = 0)
     {
-        if (!File.Exists(_tempFilePath))
+        if (!File.Exists(path))
         {
             return;
         }
 
         try
         {
-            File.Delete(_tempFilePath);
+            File.Delete(path);
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Failed to delete temp TvGuide stream file {FilePath}", _tempFilePath);
+            _logger.LogDebug(ex, "Failed to delete temp TvGuide file {FilePath}", path);
             if (retryCount >= 40)
             {
                 return;
             }
 
             await Task.Delay(500).ConfigureAwait(false);
-            await DeleteTempFileAsync(retryCount + 1).ConfigureAwait(false);
+            await DeleteFileAsync(path, retryCount + 1).ConfigureAwait(false);
         }
     }
 

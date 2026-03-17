@@ -58,16 +58,14 @@ public class TvGuideService : ILiveTvService, ISupportsDirectStreamProvider
     {
         var channels = _channelManager.GetChannels();
         await _channelManager.ClearPersistedChannelImagesAsync(channels, Name, cancellationToken).ConfigureAwait(false);
-        _logger.LogInformation("TvGuide providing {Count} genre channels", channels.Count);
+        _logger.LogInformation("TvGuide providing {Count} channels", channels.Count);
         return channels;
     }
 
     public Task<IEnumerable<ProgramInfo>> GetProgramsAsync(
         string channelId, DateTime startDateUtc, DateTime endDateUtc, CancellationToken cancellationToken)
     {
-        var genres = _channelManager.GetGenres();
-        var genre = ChannelManager.ChannelIdToGenre(channelId, genres);
-        var items = _channelManager.GetItemsForGenre(genre);
+        var items = _channelManager.ResolveItemsForChannel(channelId);
 
         if (items.Count == 0)
         {
@@ -138,7 +136,7 @@ public class TvGuideService : ILiveTvService, ISupportsDirectStreamProvider
             channelId,
             slots,
             seekSeconds,
-            CreateManagedMediaSource(channelId),
+            CreateManagedMediaSource(channelId, slots),
             _mediaEncoder,
             _appHost,
             _configurationManager,
@@ -191,8 +189,49 @@ public class TvGuideService : ILiveTvService, ISupportsDirectStreamProvider
         => Task.CompletedTask;
 
     private MediaSourceInfo CreateManagedMediaSource(string channelId)
+        => CreateManagedMediaSource(channelId, GetSlotsFromNow(channelId));
+
+    private MediaSourceInfo CreateManagedMediaSource(string channelId, IReadOnlyList<ScheduleSlot> slots)
     {
-        var mediaSource = new MediaSourceInfo
+        var config = Plugin.GetCurrentConfiguration();
+        var videoBitrate = config.GetEffectiveVideoBitrateKbps() * 1000;
+        var audioBitrate = config.GetEffectiveAudioBitrateKbps() * 1000;
+        var outputFrameRate = TvGuideFfmpeg.GetOutputFrameRate(slots);
+
+        var mediaStreams = new List<MediaStream>
+        {
+            new()
+            {
+                Type = MediaStreamType.Video,
+                Index = 0,
+                Codec = "h264",
+                Profile = "High",
+                Level = 41,
+                BitRate = videoBitrate,
+                Width = 1920,
+                Height = 1080,
+                AverageFrameRate = (float)outputFrameRate,
+                RealFrameRate = (float)outputFrameRate,
+                IsDefault = true,
+                PixelFormat = "yuv420p",
+                BitDepth = 8,
+                NalLengthSize = "0",
+                IsInterlaced = false,
+            },
+            new()
+            {
+                Type = MediaStreamType.Audio,
+                Index = 1,
+                Codec = "aac",
+                BitRate = audioBitrate,
+                SampleRate = 48000,
+                Channels = 2,
+                ChannelLayout = "stereo",
+                IsDefault = true,
+            },
+        };
+
+        return new MediaSourceInfo
         {
             Id = channelId,
             Path = string.Empty,
@@ -206,52 +245,20 @@ public class TvGuideService : ILiveTvService, ISupportsDirectStreamProvider
             Container = "ts",
             RequiresOpening = true,
             RequiresClosing = true,
-            SupportsProbing = true,
+            SupportsProbing = false,
             IgnoreDts = true,
             UseMostCompatibleTranscodingProfile = true,
-            MediaStreams = new List<MediaStream>
-            {
-                new()
-                {
-                    Type = MediaStreamType.Video,
-                    // Leave indexes unknown so Jellyfin probes the opened live stream
-                    // and replaces the placeholder live-TV metadata.
-                    Index = -1,
-                    Codec = "h264",
-                    Profile = "High",
-                    Level = 41,
-                    BitRate = 4000000,
-                    Width = 1920,
-                    Height = 1080,
-                    IsDefault = true,
-                    PixelFormat = "yuv420p",
-                    BitDepth = 8,
-                    NalLengthSize = "0",
-                    IsInterlaced = false,
-                },
-                new()
-                {
-                    Type = MediaStreamType.Audio,
-                    Index = -1,
-                    Codec = "aac",
-                    BitRate = 384000,
-                    SampleRate = 48000,
-                    Channels = 2,
-                    ChannelLayout = "stereo",
-                    IsDefault = true,
-                },
-            },
-            Bitrate = 4384000,
+            MediaStreams = mediaStreams,
+            DefaultAudioStreamIndex = 1,
+            Bitrate = videoBitrate + audioBitrate,
+            FallbackMaxStreamingBitrate = videoBitrate + audioBitrate,
+            AnalyzeDurationMs = 3000,
         };
-
-        return mediaSource;
     }
 
     private List<ScheduleSlot> GetSlotsFromNow(string channelId)
     {
-        var genres = _channelManager.GetGenres();
-        var genre = ChannelManager.ChannelIdToGenre(channelId, genres);
-        var items = _channelManager.GetItemsForGenre(genre);
+        var items = _channelManager.ResolveItemsForChannel(channelId);
 
         return _scheduleGenerator.GetSlotsFromNow(channelId, items, DateTime.UtcNow, 20);
     }

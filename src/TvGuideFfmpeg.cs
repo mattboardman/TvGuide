@@ -12,6 +12,9 @@ namespace Jellyfin.Plugin.TvGuide;
 
 internal static class TvGuideFfmpeg
 {
+    internal static double GetOutputFrameRate(IReadOnlyList<ScheduleSlot> slots)
+        => DetermineOutputFps(slots).NumericValue;
+
     public static void AddNormalizedConcatInputs(
         ICollection<string> args,
         IReadOnlyList<ScheduleSlot> slots,
@@ -35,9 +38,12 @@ internal static class TvGuideFfmpeg
     public static void AddNormalizedOutputEncoding(
         ICollection<string> args,
         IReadOnlyList<ScheduleSlot> slots,
+        TvGuideConfiguration configuration,
         double keyFrameIntervalSeconds = 3.0)
     {
         var outputFps = DetermineOutputFps(slots);
+        var videoBitrateKbps = configuration.GetEffectiveVideoBitrateKbps();
+        var audioBitrateKbps = configuration.GetEffectiveAudioBitrateKbps();
 
         args.Add("-filter_complex");
         args.Add(BuildConcatFilterGraph(slots.Count, outputFps.Argument));
@@ -56,7 +62,7 @@ internal static class TvGuideFfmpeg
         args.Add("-force_key_frames");
         args.Add("expr:gte(t,n_forced*" + keyFrameIntervalSeconds.ToString("0.###", CultureInfo.InvariantCulture) + ")");
         args.Add("-b:v");
-        args.Add("4M");
+        args.Add(videoBitrateKbps.ToString(CultureInfo.InvariantCulture) + "k");
         args.Add("-pix_fmt");
         args.Add("yuv420p");
         args.Add("-c:a");
@@ -68,7 +74,7 @@ internal static class TvGuideFfmpeg
         args.Add("-ac");
         args.Add("2");
         args.Add("-b:a");
-        args.Add("384k");
+        args.Add(audioBitrateKbps.ToString(CultureInfo.InvariantCulture) + "k");
         args.Add("-sn");
     }
 

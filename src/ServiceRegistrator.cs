@@ -12,6 +12,7 @@ public class ServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ChannelManager>();
         serviceCollection.AddSingleton<ScheduleGenerator>();
         serviceCollection.AddSingleton<HlsManager>();
+        serviceCollection.AddSingleton<SuggestionService>();
         serviceCollection.AddSingleton<ILiveTvService, TvGuideService>();
     }
 }

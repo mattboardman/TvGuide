@@ -23,8 +23,9 @@ jobs:
           disk-cache: ${{ github.workflow }}
           repository-cache: true
 
-      - name: Build TvGuide
-        run: bazel build //:TvGuide
+      - name: Build TvGuide and runtime deps
+        run: |
+          bazel build //:TvGuide //:runtime_deps
 
       - name: Prepare release artifact
         id: artifact
@@ -39,6 +40,7 @@ jobs:
           STAGE_DIR="TvGuide_${PLUGIN_VERSION}"
           mkdir -p "${STAGE_DIR}"
           cp bazel-bin/TvGuide/net9.0/TvGuide.dll "${STAGE_DIR}/"
+          cp bazel-bin/runtime_deps_out/*.dll "${STAGE_DIR}/"
           cp meta.json "${STAGE_DIR}/"
 
           ZIP_NAME="${TARGET_ABI}.-.TvGuide_${PLUGIN_VERSION}.zip"

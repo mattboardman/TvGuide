@@ -30,5 +30,6 @@ group tvguide_deps
     nuget System.IO.Pipelines ~> 9.0
     nuget System.Text.Encodings.Web ~> 9.0
     nuget System.Threading.Tasks.Dataflow ~> 9.0
+    nuget OpenAI 2.1.0
     nuget NUnit 4.3.2
     nuget NUnit3TestAdapter 4.6.0

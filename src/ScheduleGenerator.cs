@@ -16,6 +16,8 @@ public class ScheduleGenerator
 
     private readonly ConcurrentDictionary<string, List<ScheduleSlot>> _cache = new();
 
+    public void ClearCache() => _cache.Clear();
+
     public List<ScheduleSlot> GenerateWeekSchedule(string channelId, List<BaseItem> items, DateTime weekStart)
     {
         if (items.Count == 0)
@@ -23,7 +25,8 @@ public class ScheduleGenerator
             return new List<ScheduleSlot>();
         }
 
-        var cacheKey = $"{weekStart:yyyy-MM-dd}:{channelId}";
+        var epoch = Plugin.GetCurrentConfiguration().ScheduleEpoch;
+        var cacheKey = $"{epoch}:{weekStart:yyyy-MM-dd}:{channelId}";
         if (_cache.TryGetValue(cacheKey, out var cached))
         {
             return cached;
@@ -31,7 +34,7 @@ public class ScheduleGenerator
 
         int year = weekStart.Year;
         int week = ISOWeek.GetWeekOfYear(weekStart);
-        long seed = ComputeSeed(year, week, channelId);
+        long seed = ComputeSeed(year, week, channelId, epoch);
 
         var shuffled = DeterministicShuffle(items, seed);
         var schedule = new List<ScheduleSlot>();
@@ -141,9 +144,9 @@ public class ScheduleGenerator
         return utc.Date.AddDays(-diff);
     }
 
-    private static long ComputeSeed(int year, int week, string channelId)
+    private static long ComputeSeed(int year, int week, string channelId, int epoch = 0)
     {
-        var input = $"{year}:{week}:{channelId}";
+        var input = $"{year}:{week}:{channelId}:{epoch}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(input));
         return BitConverter.ToInt64(hash, 0);
     }
